@@ -47,15 +47,27 @@ jobs:
           Copy-Item $exe.FullName dist\bin\re_demo.exe
           Write-Host "Copied: $($exe.FullName) -> dist\bin\re_demo.exe"
 
-      - name: Install UPX
-        shell: pwsh
-        run: choco install upx -y
-
-      - name: Create UPX packed binary
+      - name: Download UPX (from GitHub releases)
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
+          $ver = "4.2.4"  # можна змінити на актуальну, якщо треба
+          $zip = "upx-$ver-win64.zip"
+          $url = "https://github.com/upx/upx/releases/download/v$ver/$zip"
+
+          New-Item -ItemType Directory -Force -Path tools | Out-Null
+          Invoke-WebRequest -Uri $url -OutFile "tools\$zip"
+          Expand-Archive -Path "tools\$zip" -DestinationPath tools -Force
+
+          # upx.exe зазвичай у tools\upx-<ver>-win64\
+          $upx = Get-ChildItem -Path tools -Recurse -Filter "upx.exe" | Select-Object -First 1
+          if (-not $upx) { throw "upx.exe not found after extract" }
+
+          Write-Host "UPX located at: $($upx.FullName)"
+          "$($upx.FullName)" --version
+
           Copy-Item dist\bin\re_demo.exe dist\bin\re_demo_upx.exe
-          upx -9 dist\bin\re_demo_upx.exe
+          & "$($upx.FullName)" -9 dist\bin\re_demo_upx.exe
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
