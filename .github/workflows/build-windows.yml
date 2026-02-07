@@ -23,7 +23,17 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist\bin | Out-Null
-          Copy-Item build\Release\re_demo.exe dist\bin\re_demo.exe
+
+          # Знайти re_demo.exe у build/ незалежно від генератора
+          $exe = Get-ChildItem -Path build -Recurse -Filter "re_demo.exe" | Select-Object -First 1
+          if (-not $exe) {
+            Write-Host "re_demo.exe not found. Listing build tree:"
+            Get-ChildItem -Path build -Recurse | Select-Object FullName
+            exit 1
+          }
+
+          Copy-Item $exe.FullName dist\bin\re_demo.exe
+          Write-Host "Copied: $($exe.FullName) -> dist\bin\re_demo.exe"
 
       - name: Install UPX
         shell: pwsh
