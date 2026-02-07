@@ -13,18 +13,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Optional but helpful if something still goes wrong:
-      # Shows repository structure on the runner.
+      # Optional: quick repo sanity check
       - name: Show repo tree (debug)
         shell: pwsh
         run: |
           Get-ChildItem -Recurse -Depth 4 | Select-Object FullName
 
-      # Use Ninja for stable single-config builds and predictable output paths
+      # Use Ninja for stable single-config builds
       - name: Configure CMake (Ninja, Release)
         run: cmake -S . -B build -G "Ninja" -DCMAKE_BUILD_TYPE=Release
 
-      # Diagnostic: list targets to confirm re_demo exists
       - name: List CMake targets (debug)
         run: cmake --build build --target help
 
@@ -37,7 +35,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path dist\bin | Out-Null
 
           # Find the built exe regardless of exact location
-          $exe = Get-ChildItem -Path build -Recurse -Filter "re_demo*.exe" | Select-Object -First 1
+          $exe = Get-ChildItem -Path build -Recurse -Filter "re_demo.exe" | Select-Object -First 1
           if (-not $exe) {
             Write-Host "re_demo.exe not found. Listing build tree:"
             Get-ChildItem -Path build -Recurse | Select-Object FullName
@@ -47,27 +45,32 @@ jobs:
           Copy-Item $exe.FullName dist\bin\re_demo.exe
           Write-Host "Copied: $($exe.FullName) -> dist\bin\re_demo.exe"
 
-      - name: Download UPX (from GitHub releases)
+      # UPX from GitHub Releases (no Chocolatey)
+      - name: Download UPX (GitHub Releases) and pack binary
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $ver = "4.2.4"  # можна змінити на актуальну, якщо треба
+
+          # Pick a stable UPX release version
+          $ver = "4.2.4"
           $zip = "upx-$ver-win64.zip"
           $url = "https://github.com/upx/upx/releases/download/v$ver/$zip"
 
           New-Item -ItemType Directory -Force -Path tools | Out-Null
+          Write-Host "Downloading: $url"
           Invoke-WebRequest -Uri $url -OutFile "tools\$zip"
+
           Expand-Archive -Path "tools\$zip" -DestinationPath tools -Force
 
-          # upx.exe зазвичай у tools\upx-<ver>-win64\
           $upx = Get-ChildItem -Path tools -Recurse -Filter "upx.exe" | Select-Object -First 1
           if (-not $upx) { throw "upx.exe not found after extract" }
 
           Write-Host "UPX located at: $($upx.FullName)"
-          "$($upx.FullName)" --version
+          & "$($upx.FullName)" --version
 
           Copy-Item dist\bin\re_demo.exe dist\bin\re_demo_upx.exe
           & "$($upx.FullName)" -9 dist\bin\re_demo_upx.exe
+          Write-Host "Created: dist\bin\re_demo_upx.exe"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
