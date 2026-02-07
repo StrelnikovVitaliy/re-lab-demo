@@ -13,19 +13,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure CMake
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      # Optional but helpful if something still goes wrong:
+      # Shows repository structure on the runner.
+      - name: Show repo tree (debug)
+        shell: pwsh
+        run: |
+          Get-ChildItem -Recurse -Depth 4 | Select-Object FullName
+
+      # Use Ninja for stable single-config builds and predictable output paths
+      - name: Configure CMake (Ninja, Release)
+        run: cmake -S . -B build -G "Ninja" -DCMAKE_BUILD_TYPE=Release
+
+      # Diagnostic: list targets to confirm re_demo exists
+      - name: List CMake targets (debug)
+        run: cmake --build build --target help
 
       - name: Build
-        run: cmake --build build --config Release
+        run: cmake --build build
 
       - name: Collect artifacts
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist\bin | Out-Null
 
-          # Знайти re_demo.exe у build/ незалежно від генератора
-          $exe = Get-ChildItem -Path build -Recurse -Filter "re_demo.exe" | Select-Object -First 1
+          # Find the built exe regardless of exact location
+          $exe = Get-ChildItem -Path build -Recurse -Filter "re_demo*.exe" | Select-Object -First 1
           if (-not $exe) {
             Write-Host "re_demo.exe not found. Listing build tree:"
             Get-ChildItem -Path build -Recurse | Select-Object FullName
@@ -37,8 +49,7 @@ jobs:
 
       - name: Install UPX
         shell: pwsh
-        run: |
-          choco install upx -y
+        run: choco install upx -y
 
       - name: Create UPX packed binary
         shell: pwsh
